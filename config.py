@@ -1,0 +1,8 @@
+# class sizes
+MIN_CLASS_SIZE = 24
+MAX_CLASS_SIZE = 34
+IDEAL_CLASS_SIZE = 28
+MAX_TEACHER_COURSES = 7
+
+# SAT model config
+MAX_MODEL_SOLVER_TIME = 100 # in seconds
