@@ -8,13 +8,13 @@ from openpyxl.styles import Font, Alignment
 NUM_STUDENTS = 800
 
 
-file_path = 'path/to/Student names file'
-if not os.path.exists(file_path):
-    print(f"Error: The file {file_path} does not exist.")
+file_path_students_names = '/Users/ez/Documents/Course-Sorting-Algorithm/exampleInput/student.xlsx'
+if not os.path.exists(file_path_students_names):
+    print(f"Error: The file {file_path_students_names} does not exist.")
     exit()
 
-df = pd.read_excel(file_path)
-studentsNames = df.iloc[:, 0].tolist()
+df_student_names = pd.read_excel(file_path_students_names)
+studentsNames = df_student_names.iloc[:, 0].tolist()
 selected_students = studentsNames[:NUM_STUDENTS]
 
 student_dict = {name: 218620 + index for index, name in enumerate(selected_students)}
@@ -218,7 +218,7 @@ def export_to_excel(students, filename='studentCourses.xlsx'):
         adjusted_width = (max_length + 2)
         ws.column_dimensions[column_letter].width = adjusted_width
 
-    wb.save(filename)
+    wb.save(path/to/Studentname)
     print(f"Data exported to {filename}")
 
 export_to_excel(students)
