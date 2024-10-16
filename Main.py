@@ -5,20 +5,10 @@ import openpyxl
 from openpyxl.styles import Font, Alignment
 
 import config
+from config import (grade_8_required, grade_9_required, grade_10_required, grade_11_required, grade_12_required, language_courses, adst_courses, fine_arts_courses, science_11_12, grade_12_electives
+)
 import courseGeneration
 from input import students, teachers
-
-# print(students, teachers)
-grade_8_required = courseGeneration.grade_8_required
-grade_9_required = courseGeneration.grade_9_required
-grade_10_required = courseGeneration.grade_10_required
-grade_11_required = courseGeneration.grade_11_required
-grade_12_required = courseGeneration.grade_12_required
-language_courses = courseGeneration.language_courses
-adst_courses = courseGeneration.adst_courses
-fine_arts_courses = courseGeneration.fine_arts_courses
-science_11_12 = courseGeneration.science_11_12
-grade_12_electives = courseGeneration.grade_12_electives
 
 offTimeTableMusicCourses = ["MUSIC 9: CONCERT CHOIR",
                                 "CHORAL MUSIC 10: CONCERT CHOIR",
@@ -205,7 +195,7 @@ def create_schedule(students, teachers):
 
     # Solve
     solver = cp_model.CpSolver()
-    solver.parameters. = 100.0 # change solver max time as appropriate
+    solver.parameters.config.MAX_MODEL_SOLVER_TIME = 100.0 # change solver max time as appropriate
     status = solver.Solve(model)
 
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
