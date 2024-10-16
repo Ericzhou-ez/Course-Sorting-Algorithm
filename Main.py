@@ -7,7 +7,6 @@ from openpyxl.styles import Font, Alignment
 import config
 from config import (grade_8_required, grade_9_required, grade_10_required, grade_11_required, grade_12_required, language_courses, adst_courses, fine_arts_courses, science_11_12, grade_12_electives
 )
-import courseGeneration
 from input import students, teachers
 
 offTimeTableMusicCourses = ["MUSIC 9: CONCERT CHOIR",

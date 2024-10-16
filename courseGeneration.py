@@ -133,7 +133,7 @@ def export_to_excel(students, filename='studentCourses.xlsx'):
         adjusted_width = (max_length + 2)
         ws.column_dimensions[column_letter].width = adjusted_width
 
-    wb.save()
+    wb.save(exampleInput)
     print(f"Data exported to {filename}")
 
 export_to_excel(students)

@@ -13,21 +13,21 @@ students = {}
 def populate_student_dict(student_input):
     try: 
         for index, row in student_input.iterrows():
-        student_name = row['Student Name']
-        student_number = row['Student Number']
-        grade = row['Grade']
+            student_name = row['Student Name']
+            student_number = row['Student Number']
+            grade = row['Grade']
 
-        courses = row['Courses'].split(', ')
-        preferences = row['Preferences']
+            courses = row['Courses'].split(', ')
+            preferences = row['Preferences']
 
-        if pd.isna(preferences):
-            preferences = []
-        else:
-            preferences = preferences.split(', ')
+            if pd.isna(preferences):
+                preferences = []
+            else:
+                preferences = preferences.split(', ')
 
-        # preference values for future use
-        courses_with_values = {course: 10000000 for course in courses}
-        preferences_with_values = {preferences[i]: (1000 if i < 2 else 100) for i in range(len(preferences))}
+            # preference values for future use
+            courses_with_values = {course: 10000000 for course in courses}
+            preferences_with_values = {preferences[i]: (1000 if i < 2 else 100) for i in range(len(preferences))}
 
         # Identify ADST and Fine Arts courses
         for course in courses_with_values:
@@ -107,5 +107,3 @@ def read_teacher_data(file_path):
 
 file_path_teachers = 'exampleInput/TeacherCourseMapping.xlsx'
 teachers = read_teacher_data(file_path_teachers)
-
-print(teachers, students)
