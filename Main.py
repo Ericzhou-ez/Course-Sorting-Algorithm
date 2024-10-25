@@ -9,12 +9,36 @@ from config import (grade_8_required, grade_9_required, grade_10_required, grade
 )
 from input import students, teachers
 
-offTimeTableMusicCourses = ["MUSIC 9: CONCERT CHOIR",
+off_timetable_courses = ["MUSIC 9: CONCERT CHOIR",
                                 "CHORAL MUSIC 10: CONCERT CHOIR",
                                 "CHORAL MUSIC 11: CONCERT CHOIR",
                                 "CHORAL MUSIC 12: CONCERT CHOIR"]
-                                
 
+departments = {
+        'ADST': ['ENGINEERING 11', 
+                 'ENGINEERING 12', 
+                 'DRAFTING 11', 
+                 'DRAFTING 12', 
+                 'FOOD STUDIES 9',
+                 'FOOD STUDIES 10 & INTRO 11', 
+                 'COMPUTER STUDIES 10', 
+                 'COMPUTER INFORMATION SYSTEMS 11',
+                 'COMPUTER INFORMATION SYSTEMS 12', 
+                 'COMPUTER PROGRAMMING 12'],
+        'Fine Arts': ['VISUAL ARTS 9', 
+                      'STUDIO ARTS 2D 10', 
+                      'STUDIO ARTS 2D 11', 
+                      'DRAMA 9 (ACTING)', 
+                      'DRAMA 10 (ACTING)',
+                      'DRAMA 11 (ACTING)', 
+                      'DRAMA 12 (ACTING)', 
+                      'MUSIC 9: CONCERT CHOIR', 
+                      'CHORAL MUSIC 10: CONCERT CHOIR',
+                      'CHORAL MUSIC 11: CONCERT CHOIR', 
+                      'CHORAL MUSIC 12: CONCERT CHOIR'],
+        # Add other departments as needed
+}
+                                
 # determines roughly if sorting is feasible
 def preprocess_teacher_assignments(teachers, students):
     course_demand = {}
@@ -22,7 +46,7 @@ def preprocess_teacher_assignments(teachers, students):
     # Calculate course demand from the students' selections, ignoring off-time table music courses
     for student, data in students.items():
         for course, (value, category) in data['courses'].items():
-            if course not in offTimeTableMusicCourses:  # Ignore off-time table music courses
+            if course not in off_timetable_courses:  # Ignore off-time table music courses
                 if course not in course_demand:
                     course_demand[course] = 0
                 course_demand[course] += 1
@@ -58,17 +82,6 @@ def create_schedule(students, teachers):
     for student in students:
         students[student]['assigned_courses'] = 0
 
-    # Define ADST and Fine Arts courses
-    adst_courses = ['ENGINEERING 11', 'ENGINEERING 12', 'DRAFTING 11', 'DRAFTING 12', 'FOOD STUDIES 9',
-                    'FOOD STUDIES 10 & INTRO 11', 'COMPUTER STUDIES 10', 'COMPUTER INFORMATION SYSTEMS 11',
-                    'COMPUTER INFORMATION SYSTEMS 12', 'COMPUTER PROGRAMMING 12']
-
-    fine_arts_courses = ['VISUAL ARTS 9', 'STUDIO ARTS 2D 10', 'STUDIO ARTS 2D 11', 'DRAMA 9 (ACTING)',
-                         'DRAMA 10 (ACTING)', 'DRAMA 11 (ACTING)', 'DRAMA 12 (ACTING)']
-
-    off_timetable_courses = ['MUSIC 9: CONCERT CHOIR', 'CHORAL MUSIC 10: CONCERT CHOIR',
-                             'CHORAL MUSIC 11: CONCERT CHOIR', 'CHORAL MUSIC 12: CONCERT CHOIR']
-
     # Create variables
     student_assignments = {}
     teacher_assignments = {}
@@ -78,8 +91,10 @@ def create_schedule(students, teachers):
     # Decision Variables: Student Assignments
     for student, data in students.items():
         for course, (value, category) in data['courses'].items():
+            # in off-time table period is not a unique identifier
             if course in off_timetable_courses:
                 off_timetable_assignments[(student, course)] = model.NewBoolVar(f'{student}_{course}_off_timetable')
+            # for "normal" classes, student, course, and every period is needed to be the unique identifier
             else:
                 for period in periods:
                     student_assignments[(student, course, period)] = model.NewBoolVar(f'{student}_{course}_{period}')
@@ -96,63 +111,68 @@ def create_schedule(students, teachers):
     # Decision Variables: Class Sizes
     all_courses = set(course for student_data in students.values() for course in student_data['courses'] if
                       course not in off_timetable_courses)
+    # every combination of courses and period
     for course in all_courses:
         for period in periods:
             class_sizes[(course, period)] = model.NewIntVar(0, len(students), f'size_{course}_{period}')
 
     # Constraints passed into solver
-    # 1. Ensure each student gets between 6 and 8 courses (including off-timetable)
-    for student, data in students.items():
-        regular_courses = sum(student_assignments[(student, course, period)]
-                              for course in students[student]['courses'] if course not in off_timetable_courses
-                              for period in periods)
-        off_timetable_courses_count = sum(off_timetable_assignments[(student, course)]
-                                          for course in students[student]['courses'] if course in off_timetable_courses)
-
-        model.Add(regular_courses + off_timetable_courses_count >= 6)  # Ensure at least 6 courses
-        model.Add(regular_courses + off_timetable_courses_count <= 8)  # No more than 8 courses
-
-    # 2. No overlapping classes for students (regular timetable)
+    # 1. No overlapping classes
     for student in students:
         for period in periods:
             model.Add(sum(student_assignments[(student, course, period)]
-                          for course in students[student]['courses'] if course not in off_timetable_courses) <= 1)
+                          for course in students[student]['courses'] 
+                          if course not in off_timetable_courses) <= 1
+                     )
 
-    # 3. Teacher assignment constraints (each teacher can have up to 8 courses across all periods)
+    # 2. 6-8 courses
+    for student in students.keys():
+        
+        regular_courses = sum(
+            student_assignments[(student, course, period)]
+            for course in students[student]['courses'] if course not in off_timetable_courses
+            for period in periods
+        )
+
+        off_timetable_courses_count = sum(
+            off_timetable_assignments[(student, course)]
+            for course in students[student]['courses'] if course in off_timetable_courses
+        )
+
+        model.Add(regular_courses + off_timetable_courses_count >= 6)
+        model.Add(regular_courses + off_timetable_courses_count <= 8)
+
+    # On regular time table teachers must have less than or equal to 7 courses
     for teacher, data in teachers.items():
-        model.Add(sum(teacher_assignments[(teacher, course, period)]
-                      for course in data['courses'] if course not in off_timetable_courses
-                      for period in periods) <= max_teacher_courses)
+        total_courses_assigned = sum(
+        teacher_assignments[(teacher, course, period)]
+        for course in data['courses'] if course not in off_timetable_courses
+        for period in periods
+        )
 
-    # 4. Ensure off-timetable courses are assigned without interfering with regular periods
-    for course in off_timetable_courses:
-        for teacher in teachers:
-            if course in teachers[teacher]['courses']:
-                for student in students:
-                    if course in students[student]['courses']:
-                        model.Add(off_timetable_assignments[(student, course)] == 1)
-                        model.Add(off_timetable_assignments[(teacher, course)] == 1)
+        model.Add(total_courses_assigned <= max_teacher_courses)
 
-    # 5. Merge small classes where possible
-    for course in all_courses:
-        total_students = sum(student_assignments[(student, course, period)]
-                             for student in students for period in periods if course in students[student]['courses'])
-        class_active = model.NewBoolVar(f'{course}_active')
+    # # 4. Merge small classes where possible -- absolutely not necessary
+    # for course in all_courses:
+    #     total_students = sum(student_assignments[(student, course, period)]
+    #                         for student in students 
+    #                         for period in periods 
+    #                         if course in students[student]['courses']
+    #                         )
 
-        # Create boolean to check if a class is active (more than zero students)
-        model.Add(total_students > 0).OnlyEnforceIf(class_active)
-        model.Add(total_students == 0).OnlyEnforceIf(class_active.Not())
+    #     class_active = model.NewBoolVar(f'{course}_active')
 
-        # Ensure the class size stays within the min/max limits when active
-        model.Add(total_students >= min_class_size).OnlyEnforceIf(class_active)
-        model.Add(total_students <= max_class_size).OnlyEnforceIf(class_active)
+    #     model.Add(total_students > 0).OnlyEnforceIf(class_active)
+    #     model.Add(total_students == 0).OnlyEnforceIf(class_active.Not())
 
-        # Distribute students across fewer periods if total is less than the ideal size
-        num_periods_active = model.NewIntVar(1, len(periods), f'{course}_periods_active')
-        model.AddDivisionEquality(num_periods_active, total_students, ideal_class_size)
+    #     model.Add(total_students >= min_class_size).OnlyEnforceIf(class_active)
+    #     model.Add(total_students <= max_class_size).OnlyEnforceIf(class_active)
 
-        for period in periods:
-            model.Add(class_sizes[(course, period)] <= ideal_class_size).OnlyEnforceIf(class_active)
+    #     num_periods_active = model.NewIntVar(1, len(periods), f'{course}_periods_active')
+    #     model.AddDivisionEquality(num_periods_active, total_students, ideal_class_size)
+
+    #     for period in periods:
+    #         model.Add(class_sizes[(course, period)] <= ideal_class_size).OnlyEnforceIf(class_active)
 
     # Objective function: Prioritize student preferences and maximize course assignments
     objective_terms = []
@@ -160,66 +180,50 @@ def create_schedule(students, teachers):
     # Maximize student course preferences
     for student, data in students.items():
         for course, preference in data['preferences'].items():
-            if course in off_timetable_courses:
-                if (student, course) in off_timetable_assignments:
-                    objective_terms.append(off_timetable_assignments[(student, course)] * preference)
-            else:
+            if course not in off_timetable_courses:
                 for period in periods:
                     if (student, course, period) in student_assignments:
                         objective_terms.append(student_assignments[(student, course, period)] * preference)
 
-    # Maximize number of courses assigned to each student to avoid incomplete schedules
+    # Maximize number of courses assigned to each student (excluding off-timetable)
     for student, data in students.items():
         regular_courses_assigned = sum(student_assignments[(student, course, period)]
-                                       for course in students[student]['courses'] if course not in off_timetable_courses
-                                       for period in periods)
-        off_timetable_courses_assigned = sum(off_timetable_assignments[(student, course)]
-                                             for course in students[student]['courses'] if course in off_timetable_courses)
-        total_courses_assigned = regular_courses_assigned + off_timetable_courses_assigned
-        objective_terms.append(total_courses_assigned)
+                                    for course in students[student]['courses'] if course not in off_timetable_courses
+                                    for period in periods
+                                    )
+        objective_terms.append(regular_courses_assigned)
 
-    # Maximize teacher assignments to their courses (including off-timetable)
-    for teacher, data in teachers.items():
-        for course in data['courses']:
-            if course in off_timetable_courses:
-                if (teacher, course) in off_timetable_assignments:
-                    objective_terms.append(off_timetable_assignments[(teacher, course)] * 1000)
-            else:
-                for period in periods:
-                    if (teacher, course, period) in teacher_assignments:
-                        objective_terms.append(teacher_assignments[(teacher, course, period)] * 1000)
-
-    # Set the objective to maximize the sum of preferences and assignments
+    # maximize the sum of preference values 
     model.Maximize(sum(objective_terms))
+
+    for (teacher, course, period), teacher_var in teacher_assignments.items():
+        student_vars_for_course_period = [
+            student_assignments[(student, course, period)]
+            for student in students
+            if course in students[student]['courses']
+        ]
+        model.AddMaxEquality(teacher_var, student_vars_for_course_period)
 
     # Solve
     solver = cp_model.CpSolver()
-    solver.parameters.config.MAX_MODEL_SOLVER_TIME = 100.0 # change solver max time as appropriate
+    solver.parameters.max_time_in_seconds = config.MAX_MODEL_SOLVER_TIME
     status = solver.Solve(model)
 
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         schedule = process_results(solver, student_assignments, teacher_assignments, class_sizes,
-                                   off_timetable_assignments, students, teachers, periods)
-        export_schedule(schedule)
-        print("Schedule exported successfully.")
+                                   students, teachers, periods)
+        # export_schedule(schedule)
         return schedule
     else:
         print(f"No solution found. Solver status: {solver.StatusName()}")
-        partial_schedule = process_partial_results(solver, student_assignments, teacher_assignments, class_sizes,
-                                                   off_timetable_assignments, students, teachers, periods)
-        if partial_schedule:
-            export_schedule(partial_schedule)
-            print("Partial schedule exported.")
-        else:
-            print("No partial schedule could be created.")
-        return partial_schedule
 
-def process_results(solver, student_assignments, teacher_assignments, class_sizes, off_timetable_assignments, students, teachers, periods):
+def process_results(solver, student_assignments, teacher_assignments, class_sizes, students, teachers, periods):
     schedule = {period: {} for period in periods}
     consolidated_class_sizes = {}  # To store combined class sizes across periods
 
     # Process regular student assignments
     for (student, course, period), var in student_assignments.items():
+        # solver.Value(var) = 0 or 1
         if solver.Value(var):
             if course not in schedule[period]:
                 schedule[period][course] = {'students': [], 'teacher': None}
@@ -231,24 +235,9 @@ def process_results(solver, student_assignments, teacher_assignments, class_size
             if course in schedule[period]:
                 schedule[period][course]['teacher'] = teacher
 
-    # Process off-timetable assignments
-    for (student, course), var in off_timetable_assignments.items():
-        if solver.Value(var):
-            # Off-timetable courses won't be part of the regular periods
-            if 'off_timetable' not in schedule:
-                schedule['off_timetable'] = {}
-            if course not in schedule['off_timetable']:
-                schedule['off_timetable'][course] = {'students': [], 'teacher': None}
-            schedule['off_timetable'][course]['students'].append(student)
-
-    for (teacher, course), var in off_timetable_assignments.items():
-        if solver.Value(var):
-            if course in schedule['off_timetable']:
-                schedule['off_timetable'][course]['teacher'] = teacher
-
     # Combine class sizes across periods
-    for course, period in class_sizes:
-        class_size = solver.Value(class_sizes[(course, period)])
+    for (course, period), var in class_sizes.items():
+        class_size = solver.Value(var)
 
         if course not in consolidated_class_sizes:
             consolidated_class_sizes[course] = 0
@@ -266,69 +255,9 @@ def process_results(solver, student_assignments, teacher_assignments, class_size
                     for student in schedule[period][course]['students']:
                         students[student]['assigned_courses'] -= 1
                     del schedule[period][course]  # Remove the course from the schedule
+
+    print(schedule)
     return schedule
-
-def process_partial_results(solver, student_assignments, teacher_assignments, class_sizes, off_timetable_assignments, students, teachers, periods):
-    schedule = {period: {} for period in periods}
-
-    # Check if a feasible or optimal solution was found
-    if solver.StatusName() not in ['OPTIMAL', 'FEASIBLE']:
-        print(f"No valid solution found. Solver status: {solver.StatusName()}")
-        return None  # Return None if no valid solution exists
-
-    # Process student assignments
-    for (student, course, period), var in student_assignments.items():
-        if solver.Value(var):  # Check if this variable has a valid assignment
-            if course not in schedule[period]:
-                schedule[period][course] = {'students': [], 'teacher': None}
-            schedule[period][course]['students'].append(student)
-
-    # Process teacher assignments
-    for (teacher, course, period), var in teacher_assignments.items():
-        if solver.Value(var):
-            if course in schedule[period]:
-                schedule[period][course]['teacher'] = teacher
-
-    # Process off-timetable assignments
-    for (student, course), var in off_timetable_assignments.items():
-        if solver.Value(var):
-            # Off-timetable courses won't be part of the regular periods
-            if 'off_timetable' not in schedule:
-                schedule['off_timetable'] = {}
-            if course not in schedule['off_timetable']:
-                schedule['off_timetable'][course] = {'students': [], 'teacher': None}
-            schedule['off_timetable'][course]['students'].append(student)
-
-    for (teacher, course), var in off_timetable_assignments.items():
-        if solver.Value(var):
-            if course in schedule['off_timetable']:
-                schedule['off_timetable'][course]['teacher'] = teacher
-    return schedule
-
-departments = {
-        'ADST': ['ENGINEERING 11', 
-                 'ENGINEERING 12', 
-                 'DRAFTING 11', 
-                 'DRAFTING 12', 
-                 'FOOD STUDIES 9',
-                 'FOOD STUDIES 10 & INTRO 11', 
-                 'COMPUTER STUDIES 10', 
-                 'COMPUTER INFORMATION SYSTEMS 11',
-                 'COMPUTER INFORMATION SYSTEMS 12', 
-                 'COMPUTER PROGRAMMING 12'],
-        'Fine Arts': ['VISUAL ARTS 9', 
-                      'STUDIO ARTS 2D 10', 
-                      'STUDIO ARTS 2D 11', 
-                      'DRAMA 9 (ACTING)', 
-                      'DRAMA 10 (ACTING)',
-                      'DRAMA 11 (ACTING)', 
-                      'DRAMA 12 (ACTING)', 
-                      'MUSIC 9: CONCERT CHOIR', 
-                      'CHORAL MUSIC 10: CONCERT CHOIR',
-                      'CHORAL MUSIC 11: CONCERT CHOIR', 
-                      'CHORAL MUSIC 12: CONCERT CHOIR'],
-        # Add other departments as needed
-}
 
 def export_schedule(schedule):
     # Invert the departments mapping to map courses to departments
@@ -389,22 +318,33 @@ def export_student_schedule(students, schedule):
         }
         assigned_courses_count = 0
       
+        # Process regular courses for each period
         for period in periods:
             assigned_course = None
             for course, course_data in schedule[period].items():
                 if student_name in course_data['students']:
                     assigned_course = course
                     assigned_courses_count += 1
-                    break  # We found the course for this period
-
-            # If the student is not assigned to a course in this period, leave it blank
+                    break
             student_row[period] = assigned_course if assigned_course else 'Free'
+
+        # Assign off-timetable courses if needed
+        off_timetable_courses = [course for course, (value, category) in data['courses'].items() if category == 'Off-Timetable']
+
+        if assigned_courses_count < 8 and off_timetable_courses:
+            remaining_courses_needed = 8 - assigned_courses_count
+            for i in range(remaining_courses_needed):
+                if i < len(off_timetable_courses):
+                    student_row[f'Off-Timetable Course {i+1}'] = off_timetable_courses[i]
+                    assigned_courses_count += 1
+
         rows.append(student_row)
 
         # Track students with fewer than 8 courses
         if assigned_courses_count < 8:
             students_with_less_than_8_courses.append((student_name, student_number, assigned_courses_count))
 
+    # Export student schedules to an Excel file
     df = pd.DataFrame(rows)
     df.to_excel('student_schedules.xlsx', index=False)
     print("Student schedules exported to student_schedules.xlsx")
@@ -416,10 +356,6 @@ def export_student_schedule(students, schedule):
         print("List of students with fewer than 8 courses exported to students_with_less_than_8_courses.xlsx")
 
 if __name__ == "__main__":
-    # Preprocess teacher assignments
-    teachers = preprocess_teacher_assignments(teachers, students)
-
-    # Create schedule
     schedule = create_schedule(students, teachers)
 
     if schedule:

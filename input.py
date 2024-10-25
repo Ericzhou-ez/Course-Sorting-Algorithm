@@ -26,25 +26,24 @@ def populate_student_dict(student_input):
                 preferences = preferences.split(', ')
 
             # preference values for future use
-            courses_with_values = {course: 10000000 for course in courses}
+            courses_with_values = {course: 2500 for course in courses}
             preferences_with_values = {preferences[i]: (1000 if i < 2 else 100) for i in range(len(preferences))}
 
-        # Identify ADST and Fine Arts courses
-        for course in courses_with_values:
-            if any(course.startswith(adst_course) for adst_course, _ in adst_courses):
-                courses_with_values[course] = (courses_with_values[course], "ADST")
-            elif any(course.startswith(fine_art_course) for fine_art_course, _ in fine_arts_courses):
-                courses_with_values[course] = (courses_with_values[course], "Fine Arts")
-            else:
-                courses_with_values[course] = (courses_with_values[course], "General")
+            # Identify ADST and Fine Arts courses
+            for course in courses_with_values:
+                if any(course.startswith(adst_course) for adst_course, _ in adst_courses):
+                    courses_with_values[course] = (courses_with_values[course], "ADST")
+                elif any(course.startswith(fine_art_course) for fine_art_course, _ in fine_arts_courses):
+                    courses_with_values[course] = (courses_with_values[course], "Fine Arts")
+                else:
+                    courses_with_values[course] = (courses_with_values[course], "General")
 
-        # Store in the students dictionary
-        students[student_name] = {
-            "number": student_number,
-            "grade": grade,
-            "courses": courses_with_values,
-            "preferences": preferences_with_values
-        }
+            students[student_name] = {
+                "number": student_number,
+                "grade": grade,
+                "courses": courses_with_values,
+                "preferences": preferences_with_values
+            }
     except Exception as e:
         print(f"An error occurred while reading the file: {e}")
         return
@@ -72,7 +71,6 @@ Example output for a student
 'CHORAL MUSIC 11: CONCERT CHOIR': 100}
 }
 """
-
 def read_teacher_data(file_path):
     try:
         df_teachers = pd.read_excel(file_path)
@@ -80,19 +78,22 @@ def read_teacher_data(file_path):
 
         for _, row in df_teachers.iterrows():
             last_name = row['Last Name']
-            courses = row['Courses'].split(', ') if isinstance(row['Courses'], str) else []
+            
+            # Ensure 'Courses' is processed correctly
+            if isinstance(row['Courses'], str):
+                courses = [course.strip() for course in row['Courses'].split(',') if course.strip()]
+            else:
+                courses = []
+
             adst_rotation = row['ADST Rotation'] == 'y'
             fine_arts_rotation = row['Fine Arts Rotation'] == 'y'
 
-            # Add ADST Rotation to courses if marked 'y'
             if adst_rotation and 'ADST Rotation' not in courses:
                 courses.append('ADST Rotation')
 
-            # Add Fine Arts Rotation to courses if marked 'y'
             if fine_arts_rotation and 'Fine Arts Rotation' not in courses:
                 courses.append('Fine Arts Rotation')
 
-            # Add teacher to the dictionary
             teachers[last_name] = {
                 "courses": courses,
                 "ADST_rotation": adst_rotation,
@@ -100,10 +101,9 @@ def read_teacher_data(file_path):
                 "available_times": ["S1P1", "S1P2", "S1P3", "S1P4", "S2P1", "S2P2", "S2P3", "S2P4"]
             }
         return teachers
-
     except Exception as e:
-        print(f"An error occurred while reading the file: {e}")
-        return
+        print(f"Error reading teacher data: {e}")
+        return {}
 
 file_path_teachers = 'exampleInput/TeacherCourseMapping.xlsx'
 teachers = read_teacher_data(file_path_teachers)
