@@ -1,109 +1,59 @@
 import pandas as pd
-import openpyxl
-from openpyxl.styles import Font, Alignment
+from typing import Dict, Any, List
 
-from config import (grade_8_required, grade_9_required, grade_10_required, grade_11_required, grade_12_required, language_courses, adst_courses, fine_arts_courses, science_11_12, grade_12_electives
-)
-offTimeTableMusicCourses = ["MUSIC 9: CONCERT CHOIR",
-                            "CHORAL MUSIC 10: CONCERT CHOIR",
-                            "CHORAL MUSIC 11: CONCERT CHOIR",
-                            "CHORAL MUSIC 12: CONCERT CHOIR"]
+PERIODS = ["S1P1","S1P2","S1P3","S1P4","S2P1","S2P2","S2P3","S2P4"]
 
-students = {}
-def populate_student_dict(student_input):
-    try: 
-        for index, row in student_input.iterrows():
-            student_name = row['Student Name']
-            student_number = row['Student Number']
-            grade = row['Grade']
+# ---------- helpers ----------
+def _yes(val) -> bool:
+    return isinstance(val, str) and val.strip().lower().startswith("y")
 
-            courses = row['Courses'].split(', ')
-            preferences = row['Preferences']
+def _split(cell: str) -> List[str]:
+    if not isinstance(cell, str):
+        return []
+    return [c.strip() for c in cell.split(",") if c.strip()]
 
-            if pd.isna(preferences):
-                preferences = []
-            else:
-                preferences = preferences.split(', ')
+# ---------- teachers ----------
+def load_teachers(path: str, default_sections: int = 7) -> Dict[str, Dict[str, Any]]:
+    df = pd.read_excel(path)
+    out: Dict[str, Dict[str, Any]] = {}
+    for _, r in df.iterrows():
+        last, first = str(r["Last Name"]).strip(), str(r["First Name"]).strip()
+        key         = f"{last}_{first[0]}"          # Smith_J
+        out[key] = {
+            "name":   first + " " + last,
+            "can_teach":    _split(r.get("Courses", "")),
+            "max_sections": int(r["Classes"]) if not pd.isna(r["Classes"]) else default_sections,
+            "room_capacity": (None if pd.isna(r["Room Capcity"])
+                              else int(r["Room Capcity"])),
+            "rotations": {
+                "ADST":     _yes(r.get("ADST Rotation", "")),
+                "FineArts": _yes(r.get("Fine Arts Rotation", ""))
+            },
+            "availability": {p: True for p in PERIODS}
+        }
+    return out
 
-            # preference values for future use
-            courses_with_values = {course: 2500 for course in courses}
-            preferences_with_values = {preferences[i]: (1000 if i < 2 else 100) for i in range(len(preferences))}
+# ---------- students ----------
+def load_students(path: str) -> Dict[int, Dict[str, Any]]:
+    df = pd.read_excel(path)
+    out: Dict[int, Dict[str, Any]] = {}
+    for _, r in df.iterrows():
+        number = int(r["Student Number"])
+        out[number] = {
+            "name":   str(r["Student Name"]).strip(),
+            "grade":  int(r["Grade"]),
+            "requests": _split(r.get("Courses", "")),
+            "preferences": _split(r.get("Preferences", "")),
+        }
+    return out
 
-            # Identify ADST and Fine Arts courses
-            for course in courses_with_values:
-                if any(course.startswith(adst_course) for adst_course, _ in adst_courses):
-                    courses_with_values[course] = (courses_with_values[course], "ADST")
-                elif any(course.startswith(fine_art_course) for fine_art_course, _ in fine_arts_courses):
-                    courses_with_values[course] = (courses_with_values[course], "Fine Arts")
-                else:
-                    courses_with_values[course] = (courses_with_values[course], "General")
+teachers = load_teachers("exampleInput/TeacherCourseMapping.xlsx")
+students = load_students("exampleInput/StudentCourses.xlsx")
 
-            students[student_name] = {
-                "number": student_number,
-                "grade": grade,
-                "courses": courses_with_values,
-                "preferences": preferences_with_values
-            }
-    except Exception as e:
-        print(f"An error occurred while reading the file: {e}")
-        return
-                 
-file_path_students = 'exampleInput/studentCourses.xlsx'
-df_students = pd.read_excel(file_path_students)
-populate_student_dict(df_students)
+if __name__ == "__main__":
+    # print any one teacher / student to verify
+    sample_teacher_key  = next(iter(teachers))
+    sample_student_key  = next(iter(students))
 
-"""
-Example output for a student
-{'number': 218620, 
-'grade': 11, 
-'courses': {'FOCUSED LITERARY STUDIES 11': (1000000, 'General'), 
-'PRE-CALCULUS 11': (1000000, 'General'), 
-'SOCIAL STUDIES 11': (1000000, 'General'), 
-'PHYSICS 11': (1000000, 'General'), 
-'LIFE SCIENCES 11': (1000000, 'General'), 
-'ENGINEERING 11': (1000000, 'ADST'), 
-'CHORAL MUSIC 11: CONCERT CHOIR': (1000000, 'Fine Arts')}, 
-
-'preferences': {'DRAFTING 11': 1000, 
-'COMPUTER INFORMATION SYSTEMS 11': 1000, 
-'ENGINEERING 11': 100, 
-'DRAMA 11 (ACTING)': 100, 
-'CHORAL MUSIC 11: CONCERT CHOIR': 100}
-}
-"""
-def read_teacher_data(file_path):
-    try:
-        df_teachers = pd.read_excel(file_path)
-        teachers = {}
-
-        for _, row in df_teachers.iterrows():
-            last_name = row['Last Name']
-            
-            # Ensure 'Courses' is processed correctly
-            if isinstance(row['Courses'], str):
-                courses = [course.strip() for course in row['Courses'].split(',') if course.strip()]
-            else:
-                courses = []
-
-            adst_rotation = row['ADST Rotation'] == 'y'
-            fine_arts_rotation = row['Fine Arts Rotation'] == 'y'
-
-            if adst_rotation and 'ADST Rotation' not in courses:
-                courses.append('ADST Rotation')
-
-            if fine_arts_rotation and 'Fine Arts Rotation' not in courses:
-                courses.append('Fine Arts Rotation')
-
-            teachers[last_name] = {
-                "courses": courses,
-                "ADST_rotation": adst_rotation,
-                "Fine_Arts_rotation": fine_arts_rotation,
-                "available_times": ["S1P1", "S1P2", "S1P3", "S1P4", "S2P1", "S2P2", "S2P3", "S2P4"]
-            }
-        return teachers
-    except Exception as e:
-        print(f"Error reading teacher data: {e}")
-        return {}
-
-file_path_teachers = 'exampleInput/TeacherCourseMapping.xlsx'
-teachers = read_teacher_data(file_path_teachers)
+    print("Sample teacher ➜", teachers[sample_teacher_key])
+    print("Sample student ➜", students[sample_student_key])

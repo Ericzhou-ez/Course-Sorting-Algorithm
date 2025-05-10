@@ -31,5 +31,5 @@ def analyze_student_enrollments(file_path):
 
 
 # File path to sutdent's course preferences
-file_path = '/Users/ez/Documents/Course-Sorting-Algorithm/exampleInput/student.xlsx'
+file_path = '/Users/ez/Documents/Course-Sorting-Algorithm/exampleInput/studentCourses.xlsx'
 analyze_student_enrollments(file_path)
