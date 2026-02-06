@@ -48,7 +48,7 @@ def load_students(path: str) -> Dict[int, Dict[str, Any]]:
     return out
 
 teachers = load_teachers("exampleInput/TeacherCourseMapping.xlsx")
-students = load_students("exampleInput/StudentCourses.xlsx")
+students = load_students("exampleInput/studentCourses.xlsx")
 
 if __name__ == "__main__":
     # print any one teacher / student to verify
